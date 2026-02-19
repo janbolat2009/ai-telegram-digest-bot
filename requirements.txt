@@ -1,0 +1,6 @@
+aiogram==3.13.1
+openai
+feedparser
+requests
+beautifulsoup4
+python-dotenv

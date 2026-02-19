@@ -1,0 +1,22 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "crons": [
+    {
+      "path": "/api/morning",
+      "schedule": "0 9 * * *"
+    },
+    {
+      "path": "/api/facts",
+      "schedule": "0 15 * * *"
+    },
+    {
+      "path": "/api/memes",
+      "schedule": "0 20 * * *"
+    }
+  ],
+  "functions": {
+    "api/**/*.py": {
+      "runtime": "python@3.12"
+    }
+  }
+}
