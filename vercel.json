@@ -15,16 +15,7 @@
     }
   ],
   "functions": {
-    "api/index.py": {
-      "runtime": "@vercel/python@0.9.0"
-    },
-    "api/morning.py": {
-      "runtime": "@vercel/python@0.9.0"
-    },
-    "api/facts.py": {
-      "runtime": "@vercel/python@0.9.0"
-    },
-    "api/memes.py": {
+    "api/**/*.py": {
       "runtime": "@vercel/python@0.9.0"
     }
   }
