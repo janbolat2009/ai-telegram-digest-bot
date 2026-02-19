@@ -13,10 +13,5 @@
       "path": "/api/memes",
       "schedule": "0 15 * * *"
     }
-  ],
-  "functions": {
-    "api/**/*.py": {
-      "runtime": "@vercel/python@0.9.0"
-    }
-  }
+  ]
 }
