@@ -1,6 +1,7 @@
 aiogram==3.13.1
+apscheduler
 openai
 feedparser
+python-dotenv
 requests
 beautifulsoup4
-python-dotenv
