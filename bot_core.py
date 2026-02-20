@@ -103,11 +103,13 @@ async def morning_post():
     news = get_news()
     text = f"{gpt}\n\n📰 {news}"
     await bot.send_message(GROUP_CHAT_ID, text, parse_mode="HTML", disable_web_page_preview=True)
+    await bot.session.close()
 
 
 async def afternoon_post():
     gpt = await generate_gpt_content("afternoon")
     await bot.send_message(GROUP_CHAT_ID, gpt, parse_mode="HTML")
+    await bot.session.close()
 
 
 async def evening_memes():
@@ -124,3 +126,4 @@ async def evening_memes():
             pass
     if sent == 0:
         await bot.send_message(GROUP_CHAT_ID, "🤖 мемов сегодня нет")
+    await bot.session.close()
