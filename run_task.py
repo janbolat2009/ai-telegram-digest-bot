@@ -9,8 +9,6 @@ async def run(name: str):
         await morning_post()
     elif name == "afternoon":
         await afternoon_post()
-    elif name == "memes":
-        await evening_memes()
     else:
         print("Unknown task. Use: morning | afternoon | memes")
 
