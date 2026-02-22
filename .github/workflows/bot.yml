@@ -1,5 +1,10 @@
 name: Telegram Digest Bot
 
+env:
+  GROUP_CHAT_ID: ${{ secrets.GROUP_CHAT_ID }}
+  TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+  OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+  
 on:
   schedule:
     - cron: '0 3 * * *'   # 08:00 KZ morning
