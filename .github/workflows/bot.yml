@@ -9,7 +9,6 @@ on:
   schedule:
     - cron: '0 3 * * *'   # 08:00 KZ morning
     - cron: '0 9 * * *'   # 14:00 KZ afternoon
-    - cron: '0 15 * * *'  # 20:00 KZ memes
   workflow_dispatch:
 
 jobs:
@@ -37,8 +36,6 @@ jobs:
             python run_task.py morning
           elif [ "$HOUR" = "09" ]; then
             python run_task.py afternoon
-          elif [ "$HOUR" = "15" ]; then
-            python run_task.py memes
           else
             echo "No task for this hour"
           fi
