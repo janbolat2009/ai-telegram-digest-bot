@@ -2,52 +2,6 @@ import asyncio
 import logging
 import os
 import random
-import re
-from datetime import datetime
-
-from aiogram import Bot
-from dotenv import load_dotenv
-from openai import OpenAI
-import feedparser
-import requests
-from bs4 import BeautifulSoup
-
-load_dotenv()
-
-TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-GROUP_CHAT_ID_ENV = os.getenv("GROUP_CHAT_ID")
-if GROUP_CHAT_ID_ENV is None:
-    raise ValueError("GROUP_CHAT_ID environment variable is not set")
-GROUP_CHAT_ID = int(GROUP_CHAT_ID_ENV)
-
-client = OpenAI(api_key=OPENAI_API_KEY)
-bot = Bot(token=TELEGRAM_TOKEN)
-
-HEADERS = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0.0.0"}
-
-async def generate_gpt_content(style="morning"):
-    if style == "morning":
-        prompt = (
-            "Сгенерируй короткий ценный пост для Telegram-группы по ИИ, машинному обучению, графическому дизайну и программированию.\n"
-            "Формат:\n"
-            "Сначала 1 короткий энергичный заголовок с эмодзи\n"
-            "Потом 3–4 самых интересных свежих факта или новинки (каждый факт — 1 строка, с эмодзи, без нумерации, без жирного текста, без звёздочек)\n"
-            "Потом 1–2 сильных вопроса для обсуждения (каждый вопрос — отдельная строка)\n"
-            "Не используй ** или __ для жирного текста — Telegram их не показывает корректно. Пиши обычным текстом. Стиль: лаконичный, цепляющий."
-        )
-    elif style == "afternoon":
-        prompt = (
-            "Сгенерируй очень короткий пост (4–6 строк) с 3–4 самыми неожиданными и крутыми фактами по ИИ/ML/дизайну/программированию.\n"
-            "Каждый факт — одна строка, с эмодзи в начале, без нумерации, без жирного текста, без ** и __.\n"
-            "Без заголовка, без вопросов. Только факты. Стиль энергичный и цепляющий."
-        )
-    else:
-        prompt = "Сгенерируй 1 очень крутой вопрос или инсайт по ИИ/ML/дизайну/программированию (1–2 предложения, с эмодзи)."
-import asyncio
-import logging
-import os
-import random
 from typing import Optional
 
 from aiogram import Bot
@@ -55,7 +9,6 @@ from dotenv import load_dotenv
 from openai import OpenAI
 import feedparser
 import requests
-from bs4 import BeautifulSoup
 
 load_dotenv()
 
@@ -67,25 +20,19 @@ OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 GROUP_CHAT_ID_ENV = os.getenv("GROUP_CHAT_ID")
 
 if not TELEGRAM_TOKEN:
-    raise ValueError("TELEGRAM_TOKEN environment variable is not set")
+    raise ValueError("TELEGRAM_TOKEN not set")
 
-if GROUP_CHAT_ID_ENV is None:
-    raise ValueError("GROUP_CHAT_ID environment variable is not set")
+if not GROUP_CHAT_ID_ENV:
+    raise ValueError("GROUP_CHAT_ID not set")
 
 GROUP_CHAT_ID = int(GROUP_CHAT_ID_ENV)
 
-client: Optional[OpenAI] = None
-if OPENAI_API_KEY:
-    client = OpenAI(api_key=OPENAI_API_KEY)
-else:
-    logger.warning("OPENAI_API_KEY not set — GPT content will be unavailable and fallback will be used")
-
+client: Optional[OpenAI] = OpenAI(api_key=OPENAI_API_KEY) if OPENAI_API_KEY else None
 bot = Bot(token=TELEGRAM_TOKEN)
 
-HEADERS = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0.0.0"}
 
-
-def _fetch_top_feeds(limit: int = 6) -> str:
+def fetch_news(limit: int = 8) -> str:
+    """Fetch raw news titles + links from RSS feeds."""
     feeds = [
         "https://arxiv.org/rss/cs.AI",
         "https://arxiv.org/rss/cs.LG",
@@ -101,50 +48,44 @@ def _fetch_top_feeds(limit: int = 6) -> str:
                     break
                 title = getattr(entry, "title", "(no title)")
                 link = getattr(entry, "link", "#")
-                summary = getattr(entry, "summary", "")
-                # Shorten summary
-                if summary:
-                    summary = summary.split("\n")[0]
-                items.append((title, link, summary))
-        except Exception:
+                summary = getattr(entry, "summary", "")[:300]
+                items.append(f"Заголовок: {title}\nКраткое описание: {summary}\nСсылка: {link}")
+        except Exception as e:
+            logger.warning(f"Feed error {url}: {e}")
             continue
         if len(items) >= limit:
             break
-
-    if not items:
-        return "(Не удалось загрузить новости)"
-
-    out_lines = []
-    for title, link, summary in items:
-        # Use simple HTML link to keep Telegram rendering fine
-        out_lines.append(f"• <a href=\"{link}\">{title}</a> — {summary}")
-    return "\n".join(out_lines)
+    return "\n\n".join(items) if items else ""
 
 
-def _fetch_meme_urls(limit: int = 4):
-    queries = ["programming meme", "AI meme", "coder meme"]
-    images = []
-    for q in queries:
+def fetch_memes(limit: int = 2) -> list:
+    subreddits = [
+        "ProgrammerHumor",
+        "ProgrammerMemes",
+        "MachineLearningMemes",
+    ]
+    memes = []
+    for sub in subreddits:
+        if len(memes) >= limit:
+            break
         try:
-            url = f"https://www.google.com/search?q={q.replace(' ', '+')}&tbm=isch"
-            r = requests.get(url, headers=HEADERS, timeout=8)
-            if r.status_code != 200:
-                continue
-            soup = BeautifulSoup(r.text, "html.parser")
-            for img in soup.find_all("img"):
-                src = img.get("src") or img.get("data-src") or ""
-                if src.startswith("http") and src.lower().endswith((".jpg", ".jpeg", ".png", ".gif")):
-                    images.append(src)
-        except Exception:
+            url = f"https://meme-api.com/gimme/{sub}/{limit}"
+            r = requests.get(url, timeout=10).json()
+            if isinstance(r, dict) and "memes" in r:
+                for m in r["memes"]:
+                    if not m.get("nsfw", False):
+                        memes.append(m["url"])
+            elif "url" in r and not r.get("nsfw", False):
+                memes.append(r["url"])
+        except Exception as e:
+            logger.warning(f"Meme API error for {sub}: {e}")
             continue
-    # Deduplicate and limit
-    images = list(dict.fromkeys(images))
-    random.shuffle(images)
-    return images[:limit]
+
+    random.shuffle(memes)
+    return memes[:limit]
 
 
-async def _call_gpt(prompt: str, max_tokens: int = 700) -> str:
-    """Call OpenAI and return text. If client absent or call fails, raise or return empty string."""
+async def call_gpt(prompt: str, max_tokens: int = 800) -> str:
     if not client:
         return ""
     try:
@@ -154,95 +95,91 @@ async def _call_gpt(prompt: str, max_tokens: int = 700) -> str:
             temperature=0.8,
             max_tokens=max_tokens,
         )
-        # Compatible with older/newer simple response structure
-        if hasattr(resp, "choices") and resp.choices:
-            msg = resp.choices[0].message
-            if hasattr(msg, "content"):
-                return msg.content.strip()
-            # fallback
-            return str(resp.choices[0])
-        return str(resp)
+        return resp.choices[0].message.content.strip()
     except Exception as e:
-        logger.exception("OpenAI request failed: %s", e)
+        logger.error(f"GPT error: {e}")
         return ""
 
 
-async def generate_gpt_content(style: str = "morning") -> str:
-    """Generate a richer, multi-part post for morning and afternoon styles."""
-    if style == "morning":
-        prompt = (
-            "Ты — редактор утреннего дайджеста для Telegram-группы про ИИ, ML, графический дизайн и разработку. "
-            "Составь содержательный утренний пост:\n"
-            "1) Одна короткая энергичная строка-заголовок с эмодзи.\\n"
-            "2) 5 главных новостей/историй (каждая новость — 2–3 предложения: заголовок, 1 предлож. сводка, 1 предлож. почему это важно/что дальше).\\n"
-            "3) Короткий раздел \"Что почитать\" — 2 ссылки (по одной строке каждая) с короткой подсказкой зачем читать.\\n"
-            "4) 2 вопроса для обсуждения в группе (по одной строке).\\n"
-            "Язык — русский. Не используй жирный текст. Сделай пост живым и полезным, длина ~8–12 абзацев." 
-        )
-        # Provide fetched news as context to improve factuality
-        news_context = _fetch_top_feeds(limit=6)
-        prompt = f"Контекст новостей:\n{news_context}\n\n" + prompt
-        out = await _call_gpt(prompt, max_tokens=900)
-        if out:
-            return out
-        # fallback: simple aggregated list
-        return f"Утренний дайджест:\n\n{news_context}\n\n(Подробнее — включите OPENAI_API_KEY для расширенных постов)"
+async def generate_morning_post() -> str:
+    """Fetch fresh news and ask GPT to rewrite them into a digest."""
+    raw_news = fetch_news(limit=8)
 
-    if style == "afternoon":
+    if raw_news:
         prompt = (
-            "Ты — писатель для коротких, но глубоких Afternoon-facts постов для Telegram: "
-            "Составь 6 увлекательных фактов по ИИ/ML/дизайну/программированию. Каждый факт — заголовок (с эмодзи) и 2–3 предложения объяснения и почему это важно."
-            "Закончи 1 практическим советом для читателей. Язык — русский. Пост должен быть увлекательным и подробным."
+            "Ты редактор Telegram-канала про ИИ, ML и программирование.\n"
+            "Вот свежие новости из RSS-лент:\n\n"
+            f"{raw_news}\n\n"
+            "Задача: составь утренний дайджест на русском языке.\n"
+            "Формат:\n"
+            "— Одна строка-заголовок с эмодзи (например: ☀️ Утренний дайджест)\n"
+            "— 5 новостей. Каждая — 2 коротких предложения своими словами + ссылка в конце в виде [читать](ссылка)\n"
+            "— 2 вопроса для обсуждения в конце\n"
+            "Требования: без жирного текста, без markdown-заголовков (#), только русский язык."
         )
-        out = await _call_gpt(prompt, max_tokens=800)
-        if out:
-            return out
-        return "(Afternoon facts temporary unavailable — включите OPENAI_API_KEY для расширенных постов)"
+        gpt = await call_gpt(prompt, max_tokens=1100)
+        if gpt:
+            return gpt
 
-    # default small insight
-    prompt = "Дай 1 короткий интересный инсайт по ИИ или программированию (2 предложения)."
-    return await _call_gpt(prompt, max_tokens=200)
+    fallback_news = fetch_news(limit=6)
+    return f"☀️ Утренний дайджест\n\n{fallback_news}" if fallback_news else "Новости временно недоступны"
+
+
+async def generate_afternoon_post() -> str:
+    """3-4 interesting facts, no bold, Russian only."""
+    count = random.randint(3, 4)
+    prompt = (
+        f"Ты редактор Telegram-канала про ИИ, ML и программирование.\n"
+        f"Напиши {count} интересных и малоизвестных факта на тему ИИ, машинного обучения или разработки ПО.\n"
+        "Каждый факт — 2–3 предложения, понятно и увлекательно.\n"
+        "В самом конце добавь 1 практический совет разработчику или исследователю.\n"
+        "Требования: без жирного текста, без markdown-заголовков (#), только русский язык."
+    )
+    gpt = await call_gpt(prompt, max_tokens=900)
+    return gpt if gpt else "Интересные факты временно недоступны"
 
 
 async def morning_post():
-    """Prepare and send the morning digest to the chat."""
-    logger.info("Preparing morning post")
-    content = await generate_gpt_content("morning")
+    content = await generate_morning_post()
     try:
-        await bot.send_message(GROUP_CHAT_ID, content, parse_mode="HTML", disable_web_page_preview=False)
-    except Exception:
-        logger.exception("Failed to send morning post")
+        await bot.send_message(GROUP_CHAT_ID, content, parse_mode="HTML")
+        logger.info("Morning post sent")
+    except Exception as e:
+        logger.error(f"Failed to send morning post: {e}")
     finally:
         await bot.session.close()
 
 
 async def afternoon_post():
-    logger.info("Preparing afternoon post")
-    content = await generate_gpt_content("afternoon")
+    content = await generate_afternoon_post()
     try:
         await bot.send_message(GROUP_CHAT_ID, content, parse_mode="HTML")
-    except Exception:
-        logger.exception("Failed to send afternoon post")
+        logger.info("Afternoon post sent")
+    except Exception as e:
+        logger.error(f"Failed to send afternoon post: {e}")
     finally:
         await bot.session.close()
 
 
 async def evening_memes():
-    logger.info("Preparing evening memes")
-    urls = _fetch_meme_urls(limit=6)
+    limit = random.randint(1, 2)
+    urls = fetch_memes(limit)
     sent = 0
+
     for url in urls:
-        if sent >= 4:
-            break
         try:
             await bot.send_photo(GROUP_CHAT_ID, url, caption="😂")
             sent += 1
             await asyncio.sleep(random.uniform(1.0, 2.5))
-        except Exception:
+        except Exception as e:
+            logger.warning(f"Failed to send meme {url}: {e}")
             continue
+
     if sent == 0:
         try:
-            await bot.send_message(GROUP_CHAT_ID, "🤖 Сегодня мемов не нашлось — завтра повезёт!")
-        except Exception:
-            logger.exception("Failed to send fallback message for memes")
+            await bot.send_message(GROUP_CHAT_ID, "Сегодня без мемов 🙂")
+        except Exception as e:
+            logger.error(f"Failed to send fallback message: {e}")
+
+    logger.info(f"Evening memes sent: {sent}")
     await bot.session.close()
